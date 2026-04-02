@@ -1,1 +1,3 @@
-"# PCI-DSS" 
+# PCI-DSS
+
+> Resource : [Link](./Resources) 
