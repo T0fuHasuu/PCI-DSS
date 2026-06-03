@@ -8,4 +8,4 @@
 
 ### Diagram 
 
-![Diagram](./workflows/Diagram/PCI-Finav2.jpg)
+![Diagram](./workflows/Diagram/PCI-Diagram.jpg)
