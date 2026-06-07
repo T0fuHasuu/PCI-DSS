@@ -1,0 +1,38 @@
+[+] Re-Construct Container
+docker compose down && docker compose up -d
+
+[+] Rebuilding Container
+docker compose up -d --build
+
+[+] Remove Exisiting Endpoints
+docker compose down --remove-orphans
+
+[+] Hard Reset && Reboot
+docker compose down -v
+docker network prune -f
+docker compose up -d --build
+
+[+] Testing Application Server
+docker exec -it app-server ping -c 1 10.100.20.10
+docker exec -it app-server ping -c 1 10.100.30.10
+docker exec -it app-server ping -c 1 kms
+docker exec -it app-server ping -c 1 db
+
+[+] Database Testing
+docker exec -it db ping -c 1 app-server
+docker exec -it db ping -c 1 10.100.10.10
+
+[+] KMS Testing
+docker exec -it kms ping -c 1 app-server
+docker exec -it kms ping -c 1 10.100.10.10
+
+[+] Connection KMS - DB
+docker exec -it kms ping -c 1 db
+
+[+] Testing Log ( UDP )
+echo "test log event" | nc -u 10.200.10.10 514
+
+
+
+[🚀]
+- Use only Name Resolutions
