@@ -1,8 +1,7 @@
 services:
   # ====================================================
-  # POS / External side
+  #                     POS / Retailer
   # ====================================================
-
   pos:
     image: alpine:3.23
     container_name: pos
@@ -12,9 +11,56 @@ services:
         ipv4_address: 192.168.10.20
 
   # ====================================================
-  #              Cardholder Data Environment
+  #                   Firewall & DMZ
   # ====================================================
+  perimeter-fw:
+    build: ./fw
+    container_name: perimeter-fw
+    environment:
+      FW_ROLE: perimeter
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    sysctls:
+      net.ipv4.ip_forward: "1"
+    networks:
+      ext_net:
+      vlan20_dmz:
+        ipv4_address: 10.0.10.1
 
+  dmz-server:
+    image: alpine:3.23
+    container_name: dmz-server
+    command: sleep infinity
+    networks:
+      vlan20_dmz:
+        ipv4_address: 10.0.10.10
+
+  internal-fw:
+    build: ./fw
+    container_name: internal-fw
+    environment:
+      FW_ROLE: internal
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    sysctls:
+      net.ipv4.ip_forward: "1"
+    networks:
+      vlan20_dmz:
+        ipv4_address: 10.0.10.2
+      vlan110_app:
+        ipv4_address: 10.100.10.1
+      vlan120_kms:
+        ipv4_address: 10.100.20.1
+      vlan130_db:
+        ipv4_address: 10.100.30.1
+      vlan200_log:
+        ipv4_address: 10.200.10.1
+
+  # ====================================================
+  #             Cardholder Data Environment
+  # ====================================================
   app-server:
     image: alpine:3.23
     container_name: app-server
@@ -57,9 +103,8 @@ services:
         ipv4_address: 10.200.10.7
 
   # ====================================================
-  #                        UTILS
+  #             Centralized Audit & Logging
   # ====================================================
-
   log-server:
     image: alpine:3.23
     container_name: log-server
@@ -68,157 +113,48 @@ services:
       vlan200_log:
         ipv4_address: 10.200.10.10
 
-  jumpbox:
-    image: alpine:3.23
-    container_name: jumpbox
-    command: sleep infinity
-    networks:
-      vlan99_jump:
-        ipv4_address: 10.50.99.10
-
-  # ====================================================
-  #                    Departments
-  # ====================================================
-
-  branch-manager:
-    image: alpine:3.23
-    container_name: branch-manager
-    command: sleep infinity
-    networks:
-      vlan51_branch:
-        ipv4_address: 10.50.51.10
-
-  operation-manager:
-    image: alpine:3.23
-    container_name: operation-manager
-    command: sleep infinity
-    networks:
-      vlan52_ops:
-        ipv4_address: 10.50.52.10
-
-  compliance-officer:
-    image: alpine:3.23
-    container_name: compliance-officer
-    command: sleep infinity
-    networks:
-      vlan53_compliance:
-        ipv4_address: 10.50.53.10
-
-  finance-manager:
-    image: alpine:3.23
-    container_name: finance-manager
-    command: sleep infinity
-    networks:
-      vlan54_finance:
-        ipv4_address: 10.50.54.10
-
-  it:
-    image: alpine:3.23
-    container_name: it
-    command: sleep infinity
-    networks:
-      vlan55_it:
-        ipv4_address: 10.50.55.10
-
-  it-security:
-    image: alpine:3.23
-    container_name: it-security
-    command: sleep infinity
-    networks:
-      vlan56_itsec:
-        ipv4_address: 10.50.56.10
-
-  # ====================================================
-  #                    Firewall & DMZ
-  # ====================================================
-
-  perimeter-fw:
-    build: ./fw
-    container_name: perimeter-fw
-    environment:
-      FW_ROLE: perimeter
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    sysctls:
-      net.ipv4.ip_forward: "1"
-    networks:
-      ext_net:
-        ipv4_address: 192.168.10.1
-      vlan20_dmz:
-        ipv4_address: 10.0.10.1
-
-  internal-fw:
-    build: ./fw
-    container_name: internal-fw
-    environment:
-      FW_ROLE: internal
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    sysctls:
-      net.ipv4.ip_forward: "1"
-    networks:
-      vlan20_dmz:
-        ipv4_address: 10.0.10.2
-      vlan110_app:
-        ipv4_address: 10.100.10.1
-      vlan120_kms:
-        ipv4_address: 10.100.20.1
-      vlan130_db:
-        ipv4_address: 10.100.30.1
-      vlan200_log:
-        ipv4_address: 10.200.10.1
-      vlan99_jump:
-        ipv4_address: 10.50.99.1
-      vlan51_branch:
-        ipv4_address: 10.50.51.1
-      vlan52_ops:
-        ipv4_address: 10.50.52.1
-      vlan53_compliance:
-        ipv4_address: 10.50.53.1
-      vlan54_finance:
-        ipv4_address: 10.50.54.1
-      vlan55_it:
-        ipv4_address: 10.50.55.1
-      vlan56_itsec:
-        ipv4_address: 10.50.56.1
-
+# ====================================================
+#                     Networks
+# ====================================================
 networks:
   ext_net:
     driver: bridge
     ipam:
       config:
         - subnet: 192.168.10.0/24
-          gateway: 192.168.10.254
-
+          gateway: 192.168.10.253
   vlan20_dmz:
     driver: bridge
     ipam:
       config:
         - subnet: 10.0.10.0/24
           gateway: 10.0.10.254
-
   vlan110_app:
     driver: bridge
     ipam:
       config:
         - subnet: 10.100.10.0/24
           gateway: 10.100.10.254
-
   vlan120_kms:
     driver: bridge
     ipam:
       config:
         - subnet: 10.100.20.0/24
           gateway: 10.100.20.254
-
   vlan130_db:
     driver: bridge
     ipam:
       config:
         - subnet: 10.100.30.0/24
           gateway: 10.100.30.254
+  vlan200_log:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.200.10.0/24
+          gateway: 10.200.10.254
+
+# Not In Use
 
   vlan99_jump:
     driver: bridge
@@ -269,12 +205,8 @@ networks:
         - subnet: 10.50.56.0/24
           gateway: 10.50.56.1
 
-  vlan200_log:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 10.200.10.0/24
-          gateway: 10.200.10.254
-
+# ====================================================
+#                      Volumes
+# ====================================================
 volumes:
   pgdata:
