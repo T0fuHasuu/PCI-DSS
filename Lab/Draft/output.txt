@@ -1,0 +1,40 @@
+D:\Workspaces\Project\PCI-DSS\Lab>docker compose up -d
+time="2026-06-15T22:32:18+07:00" level=warning msg="D:\\Workspaces\\Project\\PCI-DSS\\Lab\\docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+[+] up 8/8
+ ✔ Network lab_vlan110    Created                                 1.1s
+ ✔ Network lab_dmz_net    Created                                 0.4s
+ ✔ Network lab_vlan120    Created                                 0.0s
+ ✔ Network lab_vlan130    Created                                 0.0s
+ ✔ Container cde-kms      Healthy                                 6.2s
+ ✔ Container cde-firewall Started                                 1.2s
+ ✔ Container cde-postgres Healthy                                 6.2s
+ ✔ Container cde-app      Started                                 6.3s
+
+
+D:\Workspaces\Project\PCI-DSS\Lab>curl -X GET "http://localhost:8000/health"
+{"status":"healthy","kms_status":"healthy","database_status":"healthy"}
+D:\Workspaces\Project\PCI-DSS\Lab>curl --connect-timeout 3 http://10.100.20.10:8001/health
+curl: (28) Connection timed out after 3014 milliseconds
+
+
+[+] Firewall
+D:\Workspaces\Project\PCI-DSS\Lab>docker exec -it cde-firewall sh -c "iptables -L -n -v"
+Chain INPUT (policy DROP 3 packets, 180 bytes)
+ pkts bytes target     prot opt in     out     source               destination
+    0     0 ACCEPT     all  --  lo     *       0.0.0.0/0            0.0.0.0/0
+   70 14922 ACCEPT     all  --  *      *       0.0.0.0/0            0.0.0.0/0            state RELATED,ESTABLISHED
+    7   420 ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:8000
+
+Chain FORWARD (policy DROP 0 packets, 0 bytes)
+ pkts bytes target     prot opt in     out     source               destination
+
+Chain OUTPUT (policy ACCEPT 77 packets, 15306 bytes)
+ pkts bytes target     prot opt in     out     source               destination
+
+D:\Workspaces\Project\PCI-DSS\Lab>docker exec -it cde-firewall sh -c "ss -lntp || netstat -lntp"
+sh: ss: not found
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name
+tcp        0      0 127.0.0.11:39123        0.0.0.0:*               LISTEN      -
+tcp        0      0 0.0.0.0:8000            0.0.0.0:*               LISTEN      16/socat
+

@@ -1,44 +1,13 @@
 version: '3.8'
 
 services:
-  # ================================================
-  # Internal Firewall (DMZ Boundary Enforcement)
-  # ================================================
-  internal-firewall:
-    image: alpine:latest
-    container_name: cde-firewall
-    cap_add:
-      - NET_ADMIN
-    ports:
-      - "8000:8000" # Only approved entry point from Host/DMZ
-    command: >
-      sh -c "
-        apk add --no-cache iptables socat &&
-        # Enforce Deny by Default Policy
-        iptables -P INPUT DROP &&
-        iptables -P FORWARD DROP &&
-        iptables -P OUTPUT ACCEPT &&
-        # Allow loopback & established connections
-        iptables -A INPUT -i lo -j ACCEPT &&
-        iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT &&
-        # Allow inbound traffic ONLY on port 8000
-        iptables -A INPUT -p tcp --dport 8000 -j ACCEPT &&
-        # Forward approved traffic to the CDE App
-        socat TCP-LISTEN:8000,fork TCP:10.100.10.10:8000
-      "
-    networks:
-      dmz_net:
-      vlan110:
-    restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
-  # ================================================
-  # Application Server
-  # ================================================
+# ================================================
+#                Application Server
+# ================================================
+# What includes : App, KMS, DB
+
+# App Container
   app:
     build:
       context: .
@@ -53,7 +22,8 @@ services:
       - DB_NAME=cde_db
       - DB_USER=cde_user
       - DB_PASSWORD=SecurePass123!
-    # REMOVED PORTS: No longer accessible directly from host; forced through firewall
+    ports:
+      - "8000:8000"  # Expose to Internal Firewall
     networks:
       vlan110:
         ipv4_address: 10.100.10.10
@@ -73,9 +43,7 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # ================================================
   # Key Management Service (Isolated on VLAN 120)
-  # ================================================
   kms:
     build:
       context: .
@@ -90,15 +58,22 @@ services:
         ipv4_address: 10.100.20.10
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')\""]
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')\""
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  # ================================================
   # PostgreSQL Database (Isolated on VLAN 130)
-  # ================================================
   postgres:
     image: postgres:16-alpine
     container_name: cde-postgres
@@ -120,33 +95,32 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
 
-# ================================================
 # Network definitions for VLAN simulation
-# ================================================
 networks:
-  dmz_net:
-    driver: bridge # External facing network for the firewall
-
   vlan110:
     driver: bridge
-    internal: true # Isolates App network from host
     ipam:
       config:
         - subnet: 10.100.10.0/24
 
   vlan120:
     driver: bridge
-    internal: true # COMPLETELY ISOLATED
+    internal: true # COMPLETELY ISOLATED: No internet or host access
     ipam:
       config:
         - subnet: 10.100.20.0/24
 
   vlan130:
     driver: bridge
-    internal: true # COMPLETELY ISOLATED
+    internal: true # COMPLETELY ISOLATED: No internet or host access
     ipam:
       config:
         - subnet: 10.100.30.0/24

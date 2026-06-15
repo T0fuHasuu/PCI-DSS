@@ -1,0 +1,126 @@
+version: '3.8'
+
+services:
+  # Application Server (Belongs to all three networks to route traffic)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cde-app
+    command: uvicorn app.app:app --host 0.0.0.0 --port 8000
+    environment:
+      - KMS_HOST=10.100.20.10
+      - KMS_PORT=8001
+      - DB_HOST=10.100.30.10
+      - DB_PORT=5432
+      - DB_NAME=cde_db
+      - DB_USER=cde_user
+      - DB_PASSWORD=SecurePass123!
+    ports:
+      - "8000:8000"
+    networks:
+      vlan110:
+        ipv4_address: 10.100.10.10
+      vlan120:
+        ipv4_address: 10.100.20.20
+      vlan130:
+        ipv4_address: 10.100.30.20
+    depends_on:
+      kms:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Key Management Service (VLAN 120)
+  kms:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cde-kms
+    command: uvicorn kms.main:app --host 0.0.0.0 --port 8001
+    environment:
+      - MASTER_KEY=${MASTER_KEY:-}
+    ports:
+      - "8001:8001"
+    networks:
+      vlan120:
+        ipv4_address: 10.100.20.10
+    restart: unless-stopped
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # PostgreSQL Database (VLAN 130)
+  postgres:
+    image: postgres:16-alpine
+    container_name: cde-postgres
+    environment:
+      - POSTGRES_DB=cde_db
+      - POSTGRES_USER=cde_user
+      - POSTGRES_PASSWORD=SecurePass123!
+    ports:
+      - "5432:5432"
+    networks:
+      vlan130:
+        ipv4_address: 10.100.30.10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init_db.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cde_user -d cde_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+
+# Network definitions for VLAN simulation
+networks:
+  vlan110:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.100.10.0/24
+
+  vlan120:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.100.20.0/24
+
+  vlan130:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.100.30.0/24
+
+volumes:
+  postgres_data:
+    driver: local

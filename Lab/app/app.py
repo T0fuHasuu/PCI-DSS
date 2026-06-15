@@ -1,8 +1,3 @@
-"""
-PCI-DSS Compliant Transaction Processing Application
-Handles transaction data, PAN masking, tokenization, and encryption
-"""
-
 import os
 import json
 import logging
@@ -14,47 +9,47 @@ from fastapi import FastAPI, HTTPException, Body
 from pydantic import BaseModel, EmailStr, Field
 import secrets
 
-# Configuration
+# Import Value
 KMS_HOST = os.getenv("KMS_HOST", "kms")
 KMS_PORT = os.getenv("KMS_PORT", "8001")
 DB_HOST = os.getenv("DB_HOST", "postgres")
 DB_PORT = int(os.getenv("DB_PORT", "5432"))
 DB_NAME = os.getenv("DB_NAME", "cde_db")
 DB_USER = os.getenv("DB_USER", "cde_user")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "SecurePass123!")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
 
 # Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="PCI-DSS CDE Application", version="1.0.0")
+app = FastAPI(title="Cardholder Data Environment", version="1.1.0")
 
 # Database connection pool
 db_pool = None
 
-
+# Customer Information
 class CustomerData(BaseModel):
-    """Customer information for transaction"""
     full_name: str = Field(..., min_length=1, max_length=255)
     email: EmailStr
     phone_number: str = Field(..., min_length=10, max_length=20)
 
 
+# PAN and SAD
 class CardholderData(BaseModel):
-    """Sensitive cardholder data"""
     pan: str = Field(..., pattern=r"^\d{13,19}$")
     exp_month: int = Field(..., ge=1, le=12)
     exp_year: int = Field(..., ge=2024, le=2099)
     cvv: str = Field(..., pattern=r"^\d{3,4}$")
 
 
+# Transaction Request - Server
 class TransactionRequest(BaseModel):
-    """Complete transaction request"""
     customer: CustomerData
     card: CardholderData
     amount: float = Field(..., gt=0, le=999999.99)
 
 
+# Transaction Response Blueprint
 class TransactionResponse(BaseModel):
     tx_id: int
     customer_id: int
@@ -63,21 +58,20 @@ class TransactionResponse(BaseModel):
     card_token: str
     tx_timestamp: str
 
+# Checking Health
 class HealthResponse(BaseModel):
-    """Health check response"""
     status: str
     kms_status: str
     database_status: str
 
-
+# Checking Database Connectivity
 async def get_db():
     if db_pool is None:
         raise HTTPException(status_code=503, detail="Database not initialized")
     return db_pool
 
-
+# Initialize Database Connection
 async def init_db():
-    """Initialize database connection pool"""
     global db_pool
     db_pool = await asyncpg.create_pool(
         host=DB_HOST,
@@ -91,15 +85,14 @@ async def init_db():
     logger.info("Database pool initialized")
 
 
+# Close Database Connection Pool
 async def close_db():
-    """Close database connection pool"""
     if db_pool:
         await db_pool.close()
         logger.info("Database pool closed")
 
-
+# Encrypt Using KMS
 async def encrypt_with_kms(plain_text: str) -> str:
-    """Encrypt data using KMS service"""
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -113,19 +106,18 @@ async def encrypt_with_kms(plain_text: str) -> str:
         logger.error(f"KMS encryption failed: {e}")
         raise HTTPException(status_code=503, detail="Encryption service unavailable")
 
-
+# Masking PAN
 def mask_pan(pan: str) -> str:
-    """Mask PAN - keep only last 4 digits"""
     if len(pan) < 4:
         return "****"
     return "*" * (len(pan) - 4) + pan[-4:]
 
-
+# Generate Unique Token
 def generate_token() -> str:
-    """Generate unique card token"""
     return f"tok_{secrets.token_hex(8)}"
 
 
+# Get or Create Customer
 async def create_or_get_customer(conn, customer_data: CustomerData) -> int:
     """Create customer if doesn't exist, return customer_id"""
     try:
@@ -187,23 +179,23 @@ async def store_transaction(
         raise HTTPException(status_code=500, detail="Transaction storage failed")
 
 
+# Initialize Start Up
 @app.on_event("startup")
 async def startup_event():
-    """Initialize on startup"""
     await init_db()
     logger.info("Application started")
 
 
+# Shutdown On App
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Cleanup on shutdown"""
     await close_db()
     logger.info("Application shutdown")
 
 
+# Health Checks
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint"""
     kms_status = "unavailable"
     db_status = "unavailable"
 
@@ -338,5 +330,4 @@ async def get_transaction(tx_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)
