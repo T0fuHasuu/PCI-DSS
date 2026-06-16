@@ -43,3 +43,42 @@ Transaction Response:
   "tx_timestamp": "2026-03-01T10:15:30.123456"
 }
 ```
+
+
+
+Based on your Docker Compose file, you are using a PostgreSQL Alpine image (postgres:16-alpine), and you have correctly identified your exact user (cde_user) and database (cde_db).
+Since you are already inside this container's terminal (indicated by the / # prompt), run this exact command:
+
+psql -U cde_user -d cde_db
+
+## What to do next inside the database:
+Once you run that, your prompt will change to cde_db=>. Run these commands to see your data:
+
+   1. List tables:
+   
+   \dt
+   
+   2. View data:
+   
+   SELECT * FROM your_table_name LIMIT 10;
+   
+   3. Exit:
+   
+   \q
+   
+   
+------------------------------
+## If you ever need to get back in from your host machine:
+Because you removed the ports, you cannot use an external GUI tool. You must use the host terminal. If you accidentally exited the container, run this from your main computer's terminal (make sure your prompt doesn't say / #):
+
+docker exec -it cde-postgres psql -U cde_user -d cde_db
+
+If you type psql -U cde_user -d cde_db right now and it throws an error, let me know:
+
+* What is the exact error message?
+* Are you trying to verify if your 01-init.sql script ran successfully?
+
+
+server {
+    listen 443 ssl;
+    server_name payment.gateway;

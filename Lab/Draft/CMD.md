@@ -41,6 +41,12 @@ docker-compose exec postgres psql -U cde_user -d cde_db -c "SELECT * FROM transa
 [+] View Logs
 docker-compose logs -f
 
+[+] Certificate 
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 ^
+  -keyout certs\peri\tls.key ^
+  -out certs\peri\tls.crt ^
+  -subj "/CN=payment.lab.local"
+
 [🚀]
 - Use only Name Resolutions
 

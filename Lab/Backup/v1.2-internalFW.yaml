@@ -5,36 +5,27 @@ services:
   # Internal Firewall (DMZ Boundary Enforcement)
   # ================================================
   internal-firewall:
-    image: alpine:latest
-    container_name: cde-firewall
+    image: alpine:3.20
+    container_name: inter-fw
     cap_add:
       - NET_ADMIN
-    ports:
-      - "8000:8000" # Only approved entry point from Host/DMZ
     command: >
       sh -c "
         apk add --no-cache iptables socat &&
-        # Enforce Deny by Default Policy
         iptables -P INPUT DROP &&
         iptables -P FORWARD DROP &&
         iptables -P OUTPUT ACCEPT &&
-        # Allow loopback & established connections
         iptables -A INPUT -i lo -j ACCEPT &&
-        iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT &&
-        # Allow inbound traffic ONLY on port 8000
-        iptables -A INPUT -p tcp --dport 8000 -j ACCEPT &&
-        # Forward approved traffic to the CDE App
-        socat TCP-LISTEN:8000,fork TCP:10.100.10.10:8000
+        iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT &&
+        iptables -A INPUT -p tcp -s 10.0.10.10 --dport 8000 -j ACCEPT &&
+        exec socat TCP-LISTEN:8000,fork,reuseaddr TCP:10.100.10.10:8000
       "
     networks:
       dmz_net:
+        ipv4_address: 10.0.10.20
       vlan110:
+        ipv4_address: 10.100.10.254
     restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   # ================================================
   # Application Server

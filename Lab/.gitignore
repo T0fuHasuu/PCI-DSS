@@ -70,3 +70,6 @@ htmlcov/
 # Env
 env
 env/*
+
+# Certs
+certs

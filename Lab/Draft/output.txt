@@ -38,3 +38,78 @@ Proto Recv-Q Send-Q Local Address           Foreign Address         State       
 tcp        0      0 127.0.0.11:39123        0.0.0.0:*               LISTEN      -
 tcp        0      0 0.0.0.0:8000            0.0.0.0:*               LISTEN      16/socat
 
+Fail
+
+C:\Users\t0fu>curl -k http://10.100.10.10:8000/health
+curl: (28) Failed to connect to 10.100.10.10 port 8000 after 21017 ms: Could not connect to server
+
+C:\Users\t0fu>curl -k https://payment.gateway:8443/transaction/999999 | jq
+  % Total    % Received % Xferd  Average Speed  Time    Time    Time   Current
+                                 Dload  Upload  Total   Spent   Left   Speed
+100     29 100     29   0      0    337      0                              0
+{
+  "detail": "Retrieval failed"
+}
+
+C:\Users\t0fu>curl -k -X POST https://payment.gateway:8443/process-transaction -H "Content-Type: application/json" -d "{\"customer\": {\"full_name\": \"Test User\"}}" | jq
+  % Total    % Received % Xferd  Average Speed  Time    Time    Time   Current
+                                 Dload  Upload  Total   Spent   Left   Speed
+100    703 100    663 100     40   7729    466                              0
+{
+  "detail": [
+    {
+      "type": "missing",
+      "loc": [
+        "body",
+        "customer",
+        "email"
+      ],
+      "msg": "Field required",
+      "input": {
+        "full_name": "Test User"
+      },
+      "url": "https://errors.pydantic.dev/2.6/v/missing"
+    },
+    {
+      "type": "missing",
+      "loc": [
+        "body",
+        "customer",
+        "phone_number"
+      ],
+      "msg": "Field required",
+      "input": {
+        "full_name": "Test User"
+      },
+      "url": "https://errors.pydantic.dev/2.6/v/missing"
+    },
+    {
+      "type": "missing",
+      "loc": [
+        "body",
+        "card"
+      ],
+      "msg": "Field required",
+      "input": {
+        "customer": {
+          "full_name": "Test User"
+        }
+      },
+      "url": "https://errors.pydantic.dev/2.6/v/missing"
+    },
+    {
+      "type": "missing",
+      "loc": [
+        "body",
+        "amount"
+      ],
+      "msg": "Field required",
+      "input": {
+        "customer": {
+          "full_name": "Test User"
+        }
+      },
+      "url": "https://errors.pydantic.dev/2.6/v/missing"
+    }
+  ]
+}
