@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PCI Transaction Flow Lab</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">NETWORK SEGMENTATION DEMONSTRATION</p>
+      <h1>PCI Transaction Flow Lab</h1>
+      <p class="subtitle">Execute one real lab transaction test, then replay its verified POS, CDE, Vault, and database results in order.</p>
+    </div>
+    <div class="status-pill" id="overall-status">Ready</div>
+  </header>
+
+  <main class="layout">
+    <section class="panel architecture-panel" aria-labelledby="flow-heading">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">VERIFIED TEST PATH</p>
+          <h2 id="flow-heading">Transaction test playback</h2>
+        </div>
+        <button class="ghost-button" id="reset-button" type="button">Reset view</button>
+      </div>
+
+      <div class="flow" id="flow">
+        <article class="flow-node" data-node="pos"><span class="node-index">01</span><div><h3>POS</h3><p>Purchase entry</p></div><span class="node-state">Waiting</span></article>
+        <div class="flow-link"><span>DNS + WireGuard</span></div>
+        <article class="flow-node" data-node="vpn"><span class="node-index">02</span><div><h3>VPN</h3><p>Encrypted store tunnel</p></div><span class="node-state">Waiting</span></article>
+        <div class="flow-link"><span>UDP/51820</span></div>
+        <article class="flow-node" data-node="perimeter"><span class="node-index">03</span><div><h3>Perimeter firewall</h3><p>TLS passthrough</p></div><span class="node-state">Waiting</span></article>
+        <div class="flow-link"><span>TLS 1.2</span></div>
+        <article class="flow-node" data-node="dmz"><span class="node-index">04</span><div><h3>DMZ Nginx</h3><p>Reverse proxy</p></div><span class="node-state">Waiting</span></article>
+        <div class="flow-link"><span>mTLS 1.2</span></div>
+        <article class="flow-node" data-node="internal"><span class="node-index">05</span><div><h3>Internal firewall</h3><p>Default-deny CDE edge</p></div><span class="node-state">Waiting</span></article>
+        <div class="flow-link"><span>TCP/8443</span></div>
+        <article class="flow-node" data-node="app"><span class="node-index">06</span><div><h3>App server</h3><p>Authorization and masking</p></div><span class="node-state">Waiting</span></article>
+        <div class="branch-row">
+          <div class="branch-line"></div>
+          <article class="flow-node compact" data-node="vault"><span class="node-index">07</span><div><h3>Vault KMS</h3><p>AES-GCM and tokenization</p></div><span class="node-state">Waiting</span></article>
+          <article class="flow-node compact" data-node="db"><span class="node-index">08</span><div><h3>PostgreSQL</h3><p>Encrypted persistence</p></div><span class="node-state">Waiting</span></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel checkout-panel" aria-labelledby="checkout-heading">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">EMBEDDED POS</p>
+          <h2 id="checkout-heading">Purchase simulation</h2>
+        </div>
+        <span class="secure-label">iframe isolated</span>
+      </div>
+      <iframe
+        id="checkout-frame"
+        title="POS purchase form"
+        src="/checkout.html"
+        sandbox="allow-forms allow-scripts allow-same-origin"
+      ></iframe>
+    </section>
+
+    <section class="panel timeline-panel" aria-labelledby="timeline-heading">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">TEST OUTPUT</p>
+          <h2 id="timeline-heading">Five-phase transaction verification</h2>
+        </div>
+        <span class="secure-label" id="cache-status">Session cache empty</span>
+      </div>
+      <ol class="timeline" id="timeline">
+        <li class="timeline-empty">Submit a purchase to execute the five-phase transaction test.</li>
+      </ol>
+    </section>
+
+    <section class="panel evidence-panel" aria-labelledby="evidence-heading">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">DATABASE EVIDENCE</p>
+          <h2 id="evidence-heading">Stored result</h2>
+        </div>
+        <span class="secure-label" id="evidence-status">No transaction</span>
+      </div>
+
+      <div class="evidence-grid">
+        <article class="metric"><span>Transaction</span><strong id="tx-id">—</strong></article>
+        <article class="metric"><span>Authorization</span><strong id="auth-status">—</strong></article>
+        <article class="metric"><span>Masked PAN</span><strong id="masked-pan">—</strong></article>
+        <article class="metric"><span>Vault key version</span><strong id="key-version">—</strong></article>
+      </div>
+
+      <div class="evidence-block">
+        <div class="block-heading"><span>Opaque card token</span><span class="badge good">No raw PAN</span></div>
+        <code id="card-token">Waiting for a completed transaction.</code>
+      </div>
+
+      <div class="evidence-block">
+        <div class="block-heading"><span>Encrypted CHD stored in PostgreSQL</span><span class="badge good">Vault ciphertext</span></div>
+        <code class="ciphertext" id="ciphertext">Waiting for a completed transaction.</code>
+      </div>
+
+
+      <div class="evidence-block">
+        <div class="block-heading"><span>Controlled Vault decryption result</span><span class="badge good">PAN remains masked</span></div>
+        <code id="decrypted-chd">Controlled verification has not run.</code>
+      </div>
+
+      <div class="assurance-row">
+        <div><span class="assurance-icon">✓</span><p><strong>Raw PAN stored</strong><br><span id="raw-pan-stored">No</span></p></div>
+        <div><span class="assurance-icon">✓</span><p><strong>CVV/SAD stored</strong><br><span id="sad-stored">No</span></p></div>
+        <div><span class="assurance-icon">✓</span><p><strong>Database transport</strong><br><span id="storage-protocol">TLS 1.2</span></p></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Demonstration only. Use test card data; this lab does not make a PCI DSS compliance claim.
+  </footer>
+  <script src="/app.js" defer></script>
+</body>
+</html>

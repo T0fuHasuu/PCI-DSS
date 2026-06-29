@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Embedded POS Checkout</title>
+  <link rel="stylesheet" href="/checkout.css">
+</head>
+<body>
+  <main class="checkout-card">
+    <div class="product-row">
+      <div class="product-icon">LAB</div>
+      <div><p class="label">Demo purchase</p><h1>Security Training Item</h1></div>
+      <strong>$25.50</strong>
+    </div>
+
+    <form id="purchase-form" novalidate>
+      <div class="grid two">
+        <label>Customer name<input name="full_name" value="POS Lab Customer" required maxlength="255"></label>
+        <label>Email<input name="email" type="email" value="pos-lab@example.com" required></label>
+      </div>
+      <label>Phone<input name="phone_number" value="+85510000000" required></label>
+      <label>Test card number<input name="pan" inputmode="numeric" autocomplete="off" value="4111111111111111" pattern="[0-9]{13,19}" required></label>
+      <div class="grid three">
+        <label>Month<input name="exp_month" type="number" value="12" min="1" max="12" required></label>
+        <label>Year<input name="exp_year" type="number" value="2030" min="2026" max="2099" required></label>
+        <label>CVV<input name="cvv" inputmode="numeric" autocomplete="off" value="123" pattern="[0-9]{3,4}" required></label>
+      </div>
+      <label>Amount<input name="amount" type="number" value="25.50" min="0.01" max="999999.99" step="0.01" required></label>
+      <button type="submit" id="purchase-button">Purchase securely</button>
+      <p class="form-status" id="form-status">Use test data only. PAN and CVV are never written to browser storage.</p>
+    </form>
+  </main>
+  <script src="/checkout.js" defer></script>
+</body>
+</html>
