@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Secure POS transaction and PCI lab processing demonstration">
+  <title>SecurePay POS Lab</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="device">
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="SecurePay POS home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img"><path d="M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4Zm1.5 5.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm7 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3ZM7 15.5h10v2H7v-2Z"/></svg>
+          </span>
+          <span class="brand-copy"><strong>SecurePay</strong><small>PCI Lab Terminal</small></span>
+        </a>
+        <div class="topbar-status">
+          <span class="terminal-state">
+            <span class="live-dot" aria-hidden="true"></span>
+            <span>Terminal online</span>
+          </span>
+          <span class="clock-chip">
+            <span id="terminal-time">--:--</span>
+            <small id="terminal-date">Loading date</small>
+          </span>
+        </div>
+      </header>
+
+      <main>
+        <section class="page-view active" id="pos-view" aria-labelledby="pos-title">
+          <div class="view-bar">
+            <div class="view-bar-title">
+              <p class="eyebrow">Terminal 01</p>
+              <h1 id="pos-title">New sale</h1>
+            </div>
+            <span class="order-badge">#LAB-001</span>
+          </div>
+
+          <div class="pos-grid">
+            <aside class="sale-panel" aria-labelledby="sale-summary-title">
+              <h2 class="sr-only" id="sale-summary-title">Order summary</h2>
+              <div class="product-card">
+                <div class="product-visual" aria-hidden="true">
+                  <svg viewBox="0 0 48 48"><path d="M10 7h28l4 10v24H6V17L10 7Zm2.7 4L10.3 17h27.4l-2.4-6H12.7ZM10 21v16h28V21h-7v5H17v-5h-7Zm11 0v1h6v-1h-6Z"/></svg>
+                </div>
+                <div class="product-copy">
+                  <strong>Security Training Item</strong>
+                  <span>PCI transaction demo · Qty 1</span>
+                </div>
+                <strong id="item-price">$25.50</strong>
+              </div>
+
+              <div class="totals">
+                <div><span>Subtotal</span><strong id="subtotal-value">$25.50</strong></div>
+                <div><span>Tax</span><strong>$0.00</strong></div>
+                <div class="grand-total"><span>Total due</span><strong id="total-value">$25.50</strong></div>
+              </div>
+
+              <div class="security-note">
+                <span class="security-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M12 2 4.5 5v5.5c0 4.8 3.2 9.2 7.5 10.5 4.3-1.3 7.5-5.7 7.5-10.5V5L12 2Zm0 4.1 3.5 1.4v3c0 2.9-1.7 5.8-3.5 6.8-1.8-1-3.5-3.9-3.5-6.8v-3L12 6.1Zm-1.1 3v2H9.5v2h1.4v1.4h2.2V13h1.4v-2h-1.4V9.1h-2.2Z"/></svg>
+                </span>
+                <div><strong>Isolated card entry</strong><p>The card form runs in a sandboxed frame. Raw PAN/CVV never touch this page.</p></div>
+              </div>
+            </aside>
+
+            <section class="payment-panel" aria-labelledby="payment-details-title">
+              <div class="payment-panel-head">
+                <h2 id="payment-details-title">Card payment</h2>
+                <span class="accepted-card">Isolated form</span>
+              </div>
+              <div class="card-slot" aria-hidden="true"></div>
+              <iframe
+                class="payment-frame"
+                id="checkout-frame"
+                title="Secure POS payment form"
+                src="/checkout.html"
+                sandbox="allow-forms allow-scripts allow-same-origin"
+              ></iframe>
+            </section>
+          </div>
+
+          <div class="bottom-action-bar">
+            <span>Background processing view unlocks after a successful payment.</span>
+            <button class="secondary-button" id="open-process-button" type="button" disabled>
+              View background processing
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13.2 5.2 5.8 5.8H4v2h15l-5.8 5.8 1.4 1.4L22.8 12l-8.2-8.2-1.4 1.4Z"/></svg>
+            </button>
+          </div>
+        </section>
+
+        <section class="page-view" id="process-view" aria-labelledby="process-title" hidden>
+          <div class="view-bar">
+            <div class="view-bar-title">
+              <p class="eyebrow">Live path</p>
+              <h1 id="process-title">Transaction route</h1>
+            </div>
+            <div class="view-bar-meta">
+              <span class="transaction-chip" id="process-tx-chip">Transaction —</span>
+              <div class="process-status" id="process-status"><span></span>Preparing playback</div>
+            </div>
+          </div>
+
+          <div class="process-body">
+            <section class="pipeline-panel" aria-labelledby="flow-title">
+              <h2 class="sr-only" id="flow-title">Segmented transaction path</h2>
+              <div class="pipeline" id="flow-list">
+                <article class="flow-node" data-node="pos">
+                  <span class="node-dot"><span class="node-icon">POS</span></span>
+                  <strong>Retail POS</strong>
+                  <span class="node-status">Waiting</span>
+                </article>
+                <div class="connector"><span>WireGuard</span></div>
+                <article class="flow-node" data-node="vpn">
+                  <span class="node-dot"><span class="node-icon">VPN</span></span>
+                  <strong>Tunnel</strong>
+                  <span class="node-status">Waiting</span>
+                </article>
+                <div class="connector"><span>Stateful FW</span></div>
+                <article class="flow-node" data-node="perimeter">
+                  <span class="node-dot"><span class="node-icon">FW</span></span>
+                  <strong>Perimeter</strong>
+                  <span class="node-status">Waiting</span>
+                </article>
+                <div class="connector"><span>TLS 1.2</span></div>
+                <article class="flow-node" data-node="dmz">
+                  <span class="node-dot"><span class="node-icon">DMZ</span></span>
+                  <strong>DMZ proxy</strong>
+                  <span class="node-status">Waiting</span>
+                </article>
+                <div class="connector"><span>mTLS</span></div>
+                <article class="flow-node" data-node="internal">
+                  <span class="node-dot"><span class="node-icon">FW</span></span>
+                  <strong>Internal FW</strong>
+                  <span class="node-status">Waiting</span>
+                </article>
+                <div class="connector"><span>CDE only</span></div>
+                <article class="flow-node" data-node="app">
+                  <span class="node-dot"><span class="node-icon">APP</span></span>
+                  <strong>CDE app</strong>
+                  <span class="node-status">Waiting</span>
+                </article>
+                <div class="connector"><span>Transit engine</span></div>
+                <article class="flow-node" data-node="vault">
+                  <span class="node-dot"><span class="node-icon">KMS</span></span>
+                  <strong>Vault KMS</strong>
+                  <span class="node-status">Waiting</span>
+                </article>
+                <div class="connector"><span>TLS + mTLS</span></div>
+                <article class="flow-node" data-node="db">
+                  <span class="node-dot"><span class="node-icon">DB</span></span>
+                  <strong>Database</strong>
+                  <span class="node-status">Waiting</span>
+                </article>
+              </div>
+            </section>
+
+            <div class="process-lower">
+              <section class="verification-panel" aria-labelledby="verification-title">
+                <div class="section-heading">
+                  <h2 id="verification-title" class="sr-only">Lab checks</h2>
+                  <span class="verification-label">Lab checks</span>
+                  <span id="verification-result" class="verification-result">Waiting</span>
+                </div>
+                <div class="verification-list" id="verification-list">
+                  <p class="empty-message">Checks appear as the path completes.</p>
+                </div>
+              </section>
+
+              <section class="data-panel" aria-labelledby="data-title">
+                <div class="section-heading">
+                  <h2 id="data-title" class="sr-only">What each stage sees</h2>
+                  <span class="verification-label">What each stage sees</span>
+                  <span class="protection-badge">No raw PAN stored</span>
+                </div>
+
+                <div class="data-stage active" id="source-stage">
+                  <button class="data-stage-heading" type="button" aria-expanded="true">
+                    <span>01</span><strong>POS request</strong><small>Submitted from the terminal</small>
+                    <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                  </button>
+                  <div class="data-stage-body">
+                    <dl class="record-grid">
+                      <div><dt>Customer</dt><dd id="flow-customer">—</dd></div>
+                      <div><dt>Email</dt><dd id="flow-email">—</dd></div>
+                      <div><dt>Phone</dt><dd id="flow-phone">—</dd></div>
+                      <div><dt>Amount</dt><dd id="flow-amount">—</dd></div>
+                      <div><dt>Card</dt><dd id="flow-card">Protected in transit</dd></div>
+                      <div><dt>CVV</dt><dd>Used in memory only</dd></div>
+                    </dl>
+                  </div>
+                </div>
+
+                <div class="data-stage" id="application-stage">
+                  <button class="data-stage-heading" type="button" aria-expanded="false">
+                    <span>02</span><strong>CDE processing</strong><small>After application controls</small>
+                    <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                  </button>
+                  <div class="data-stage-body">
+                    <dl class="record-grid">
+                      <div><dt>Authorization</dt><dd id="flow-authorization">—</dd></div>
+                      <div><dt>Masked PAN</dt><dd id="flow-masked-pan">—</dd></div>
+                      <div><dt>CVV retained</dt><dd class="safe-value">No</dd></div>
+                      <div><dt>Vault key</dt><dd id="flow-key-version">—</dd></div>
+                    </dl>
+                  </div>
+                </div>
+
+                <div class="data-stage" id="database-stage">
+                  <button class="data-stage-heading" type="button" aria-expanded="false">
+                    <span>03</span><strong>PostgreSQL record</strong><small>Actual verified evidence</small>
+                    <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                  </button>
+                  <div class="data-stage-body">
+                    <div class="database-table" role="table" aria-label="Protected database record">
+                      <div class="database-row" role="row"><span>tx_id</span><code id="db-tx-id">—</code></div>
+                      <div class="database-row" role="row"><span>authorization_status</span><code id="db-auth">—</code></div>
+                      <div class="database-row" role="row"><span>tx_amount</span><code id="db-amount">—</code></div>
+                      <div class="database-row" role="row"><span>masked_pan</span><code id="db-masked-pan">—</code></div>
+                      <div class="database-row" role="row"><span>card_token</span><code id="db-token">—</code></div>
+                      <div class="database-row" role="row"><span>encrypted_chd</span><code id="db-ciphertext">—</code></div>
+                      <div class="database-row" role="row"><span>vault_key_version</span><code id="db-key-version">—</code></div>
+                    </div>
+                    <div class="assurance-strip">
+                      <div><strong id="raw-pan-check">No</strong><span>Raw PAN stored</span></div>
+                      <div><strong id="sad-check">No</strong><span>SAD/CVV stored</span></div>
+                      <div><strong id="db-tls-check">Pending</strong><span>DB transport</span></div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <div class="bottom-action-bar">
+            <span>Returning to the terminal clears this transaction and starts a new sale.</span>
+            <button class="secondary-button" id="back-to-pos-button" type="button">
+              <svg class="back-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m10.8 18.8-5.8-5.8h15v-2H5l5.8-5.8-1.4-1.4L1.2 12l8.2 8.2 1.4-1.4Z"/></svg>
+              Back to POS
+            </button>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast" id="success-toast" role="status" aria-live="polite" aria-hidden="true">
+    <span class="toast-check" aria-hidden="true">✓</span>
+    <div><strong>Transaction successful</strong><p id="toast-message">The payment was approved and verified.</p></div>
+    <button type="button" id="close-toast" aria-label="Close notification">×</button>
+  </div>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>

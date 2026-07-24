@@ -1,0 +1,799 @@
+name: pci-segmentation-core
+services:
+  log-server:
+    build:
+      context: .
+      dockerfile: docker/infra.Dockerfile
+    container_name: log-server
+    command:
+    - /usr/local/lib/lab/start-log-server.sh
+    cap_add:
+    - NET_ADMIN
+    security_opt:
+    - no-new-privileges:true
+    sysctls:
+      net.ipv4.ip_forward: '0'
+    volumes:
+    - ./configs/infra/dnsmasq.conf:/etc/dnsmasq.conf:ro
+    - ./configs/infra/chrony-server.conf:/etc/chrony/chrony.conf:ro
+    - ./configs/infra/rsyslog.conf:/etc/rsyslog.conf:ro
+    - log_data:/var/log/remote
+    networks:
+      store_net:
+        ipv4_address: 192.168.10.200
+      dmz_net:
+        ipv4_address: 10.0.10.200
+      app_net:
+        ipv4_address: 10.100.10.200
+      kms_net:
+        ipv4_address: 10.100.20.200
+      db_net:
+        ipv4_address: 10.100.30.200
+      security_tools_net:
+        ipv4_address: 172.31.10.200
+    healthcheck:
+      test:
+      - CMD
+      - /usr/local/lib/lab/health-log-server.sh
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 10s
+    restart: unless-stopped
+    labels:
+      lab.pci.zone: supporting-infrastructure
+      lab.pci.implementation: implemented
+      lab.pci.scope.category: connected-security-impacting
+      lab.pci.scope.reason: dns-ntp-and-audit-log-services-for-cde
+      lab.pci.antimalware.coverage: repository-files-scanned
+      lab.pci.antimalware.runtime: not-demonstrated
+  antimalware:
+    build:
+      context: .
+      dockerfile: docker/clamav.Dockerfile
+    container_name: antimalware
+    environment:
+      LOG_SERVER: 172.31.10.200
+      FRESHCLAM_INTERVAL_SECONDS: '43200'
+      SCAN_INTERVAL_SECONDS: '86400'
+      INITIAL_UPDATE_DELAY_SECONDS: '60'
+    security_opt:
+    - no-new-privileges:true
+    volumes:
+    - ./app:/scan/app:ro
+    - ./demo-api:/scan/demo-api:ro
+    - ./demo-ui:/scan/demo-ui:ro
+    - ./pos-agent:/scan/pos-agent:ro
+    - ./scripts:/scan/scripts:ro
+    - ./docker:/scan/docker:ro
+    - ./db:/scan/db:ro
+    - ./configs:/scan/configs:ro
+    - clamav_database:/var/lib/clamav
+    - antimalware_logs:/var/log/clamav
+    - antimalware_test:/var/lib/clamav-test
+    networks:
+      security_tools_net:
+        ipv4_address: 172.31.10.10
+    depends_on:
+      log-server:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - test -f /run/antimalware/ready && clamscan --version >/dev/null
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    labels:
+      lab.pci.zone: security-tools
+      lab.pci.implementation: implemented
+      lab.pci.scope.category: connected-security-impacting
+      lab.pci.scope.reason: malware-control-supports-in-scope-components
+      lab.pci.antimalware.coverage: scanner-service
+      lab.pci.antimalware.mode: on-demand-and-scheduled
+    restart: unless-stopped
+  pos:
+    build:
+      context: .
+      dockerfile: docker/firewall.Dockerfile
+    container_name: pos
+    command:
+    - /usr/local/lib/lab/start-pos.sh
+    cap_add:
+    - NET_ADMIN
+    devices:
+    - /dev/net/tun:/dev/net/tun
+    security_opt:
+    - no-new-privileges:true
+    environment:
+      LOG_SERVER: 192.168.10.200
+      NTP_SERVER: 192.168.10.200
+    dns:
+    - 192.168.10.200
+    dns_search:
+    - lab.internal
+    volumes:
+    - ./secrets/wireguard/pos/wg0.conf:/etc/wireguard/wg0.conf:ro
+    - ./secrets/pki/pos:/etc/lab/pki:ro
+    - pos_status:/run/pos-status
+    networks:
+      store_net:
+        ipv4_address: 192.168.10.20
+    depends_on:
+      log-server:
+        condition: service_healthy
+      peri-fw:
+        condition: service_started
+    restart: unless-stopped
+    labels:
+      lab.pci.zone: retail
+      lab.pci.implementation: implemented
+      lab.pci.scope.category: cde
+      lab.pci.scope.reason: shares-network-namespace-with-pos-agent-that-transmits-chd
+      lab.pci.antimalware.coverage: repository-files-scanned
+      lab.pci.antimalware.runtime: not-demonstrated
+  peri-fw:
+    build:
+      context: .
+      dockerfile: docker/firewall.Dockerfile
+    container_name: peri-fw
+    command:
+    - /usr/local/lib/lab/start-peri-fw.sh
+    cap_add:
+    - NET_ADMIN
+    devices:
+    - /dev/net/tun:/dev/net/tun
+    security_opt:
+    - no-new-privileges:true
+    sysctls:
+      net.ipv4.ip_forward: '1'
+    environment:
+      LOG_SERVER: 10.0.10.200
+      NTP_SERVER: 10.0.10.200
+    dns:
+    - 10.0.10.200
+    volumes:
+    - ./secrets/wireguard/peri-fw/wg0.conf:/etc/wireguard/wg0.conf:ro
+    - ./configs/infra/ulogd.conf:/etc/ulogd.conf:ro
+    networks:
+      store_net:
+        ipv4_address: 192.168.10.254
+      dmz_net:
+        ipv4_address: 10.0.10.1
+    depends_on:
+      log-server:
+        condition: service_healthy
+    restart: unless-stopped
+    labels:
+      lab.pci.zone: perimeter
+      lab.pci.implementation: implemented
+      lab.pci.scope.category: connected-security-impacting
+      lab.pci.scope.reason: enforces-segmentation-and-protects-cde-path
+      lab.pci.antimalware.coverage: repository-files-scanned
+      lab.pci.antimalware.runtime: not-demonstrated
+  dmz:
+    build:
+      context: .
+      dockerfile: docker/nginx.Dockerfile
+    container_name: dmz
+    command:
+    - /usr/local/lib/lab/start-dmz.sh
+    cap_add:
+    - NET_ADMIN
+    security_opt:
+    - no-new-privileges:true
+    environment:
+      LOG_SERVER: 10.0.10.200
+      NTP_SERVER: 10.0.10.200
+    dns:
+    - 10.0.10.200
+    dns_search:
+    - lab.internal
+    volumes:
+    - ./configs/nginx/dmz.conf:/etc/nginx/nginx.conf:ro
+    - ./secrets/pki/dmz:/etc/lab/pki:ro
+    networks:
+      dmz_net:
+        ipv4_address: 10.0.10.10
+    depends_on:
+      log-server:
+        condition: service_healthy
+      int-fw:
+        condition: service_started
+      app:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - nginx
+      - -t
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    labels:
+      lab.pci.zone: dmz
+      lab.pci.implementation: implemented
+      lab.pci.scope.category: cde
+      lab.pci.scope.reason: terminates-tls-and-transmits-chd
+      lab.pci.antimalware.coverage: repository-files-scanned
+      lab.pci.antimalware.runtime: not-demonstrated
+  int-fw:
+    build:
+      context: .
+      dockerfile: docker/firewall.Dockerfile
+    container_name: int-fw
+    command:
+    - /usr/local/lib/lab/start-int-fw.sh
+    cap_add:
+    - NET_ADMIN
+    security_opt:
+    - no-new-privileges:true
+    sysctls:
+      net.ipv4.ip_forward: '1'
+    environment:
+      LOG_SERVER: 10.100.10.200
+      NTP_SERVER: 10.100.10.200
+    dns:
+    - 10.100.10.200
+    volumes:
+    - ./configs/infra/ulogd.conf:/etc/ulogd.conf:ro
+    networks:
+      dmz_net:
+        ipv4_address: 10.0.10.254
+      app_net:
+        ipv4_address: 10.100.10.1
+    depends_on:
+      log-server:
+        condition: service_healthy
+    restart: unless-stopped
+    labels:
+      lab.pci.zone: cde-boundary
+      lab.pci.implementation: implemented
+      lab.pci.scope.category: connected-security-impacting
+      lab.pci.scope.reason: enforces-segmentation-at-cde-boundary
+      lab.pci.antimalware.coverage: repository-files-scanned
+      lab.pci.antimalware.runtime: not-demonstrated
+  app:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+    container_name: app
+    command:
+    - /usr/local/lib/lab/start-app.sh
+    cap_add:
+    - NET_ADMIN
+    security_opt:
+    - no-new-privileges:true
+    sysctls:
+      net.ipv4.ip_forward: '0'
+    environment:
+      APP_LOG_SERVER: 10.100.10.200
+      APP_LOG_PORT: '514'
+      VAULT_ADDR: https://10.100.20.10:8200
+      VAULT_ROLE_ID_FILE: /run/vault-approle/role_id
+      VAULT_SECRET_ID_FILE: /run/vault-approle/secret_id
+      VAULT_CACERT: /etc/lab/pki/ca.crt
+      VAULT_CLIENT_CERT: /etc/lab/pki/vault-client.crt
+      VAULT_CLIENT_KEY: /etc/lab/pki/vault-client.key
+      DB_HOST: 10.100.30.10
+      DB_PORT: '5432'
+      DB_NAME: cde_db
+      DB_USER: cde_user
+      DB_CACERT: /etc/lab/pki/ca.crt
+      DB_CLIENT_CERT: /etc/lab/pki/db-client.crt
+      DB_CLIENT_KEY: /etc/lab/pki/db-client.key
+      LOG_SERVER: 10.100.10.200
+      NTP_SERVER: 10.100.10.200
+      DEMO_EVIDENCE_ENABLED: ${DEMO_EVIDENCE_ENABLED:-true}
+    dns:
+    - 10.100.10.200
+    dns_search:
+    - lab.internal
+    volumes:
+    - ./configs/nginx/app.conf:/etc/nginx/nginx.conf:ro
+    - ./configs/infra/chrony-client.conf:/etc/chrony/chrony.conf:ro
+    - ./configs/infra/supervisord-app.conf:/etc/supervisord.conf:ro
+    - ./secrets/pki/app:/etc/lab/pki:ro
+    - app_vault_credentials:/run/vault-approle:ro
+    networks:
+      app_net:
+        ipv4_address: 10.100.10.10
+      kms_net:
+        ipv4_address: 10.100.20.20
+      db_net:
+        ipv4_address: 10.100.30.20
+    depends_on:
+      log-server:
+        condition: service_healthy
+      kms:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - curl --fail --silent --show-error --cacert /etc/lab/pki/ca.crt --cert /etc/lab/pki/health-client.crt
+        --key /etc/lab/pki/health-client.key --resolve app.internal:8443:127.0.0.1
+        https://app.internal:8443/health | grep -q '"status":"healthy"'
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+    restart: unless-stopped
+    labels:
+      lab.pci.zone: cde-application
+      lab.pci.implementation: implemented
+      lab.pci.scope.category: cde
+      lab.pci.scope.reason: processes-chd-and-controls-storage
+      lab.pci.antimalware.coverage: repository-files-scanned
+      lab.pci.antimalware.runtime: not-demonstrated
+  kms:
+    build:
+      context: .
+      dockerfile: docker/vault.Dockerfile
+    container_name: kms
+    cap_add:
+    - NET_ADMIN
+    security_opt:
+    - no-new-privileges:true
+    environment:
+      VAULT_ADDR: https://127.0.0.1:8200
+      VAULT_CACERT: /etc/lab/pki/ca.crt
+      VAULT_CLIENT_CERT: /etc/lab/pki/admin-client.crt
+      VAULT_CLIENT_KEY: /etc/lab/pki/admin-client.key
+      LOG_SERVER: 10.100.20.200
+      NTP_SERVER: 10.100.20.200
+      DEMO_EVIDENCE_ENABLED: ${DEMO_EVIDENCE_ENABLED:-true}
+    dns:
+    - 10.100.20.200
+    dns_search:
+    - lab.internal
+    volumes:
+    - ./configs/vault/vault.hcl:/vault/config/vault.hcl:ro
+    - ./configs/vault/payment-app-policy.hcl:/vault/config/payment-app-policy.hcl:ro
+    - ./configs/vault/payment-evidence-policy.hcl:/vault/config/payment-evidence-policy.hcl:ro
+    - ./configs/infra/chrony-client.conf:/etc/chrony/chrony.conf:ro
+    - ./secrets/pki/kms:/etc/lab/pki:ro
+    - vault_data:/vault/file
+    - vault_bootstrap:/vault/bootstrap
+    - app_vault_credentials:/vault/app-credentials
+    networks:
+      kms_net:
+        ipv4_address: 10.100.20.10
+    depends_on:
+      log-server:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - test -s /vault/app-credentials/role_id && test -s /vault/app-credentials/secret_id
+        && curl --fail --silent --show-error --tlsv1.2 --tls-max 1.2 --cacert /etc/lab/pki/ca.crt
+        --cert /etc/lab/pki/admin-client.crt --key /etc/lab/pki/admin-client.key --resolve
+        vault.internal:8200:127.0.0.1 'https://vault.internal:8200/v1/sys/health?standbyok=true'
+        >/dev/null
+      interval: 10s
+      timeout: 8s
+      retries: 30
+      start_period: 90s
+    restart: unless-stopped
+    labels:
+      lab.pci.zone: cde-kms
+      lab.pci.implementation: implemented
+      lab.pci.scope.category: cde
+      lab.pci.scope.reason: processes-chd-and-holds-cryptographic-keys
+      lab.pci.antimalware.coverage: repository-files-scanned
+      lab.pci.antimalware.runtime: not-demonstrated
+  db:
+    build:
+      context: .
+      dockerfile: docker/postgres.Dockerfile
+    container_name: db
+    command:
+    - postgres
+    - -c
+    - config_file=/etc/postgresql/postgresql.conf
+    cap_add:
+    - NET_ADMIN
+    security_opt:
+    - no-new-privileges:true
+    environment:
+      POSTGRES_DB: cde_db
+      POSTGRES_USER: cde_admin
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      LOG_SERVER: 10.100.30.200
+      NTP_SERVER: 10.100.30.200
+    dns:
+    - 10.100.30.200
+    dns_search:
+    - lab.internal
+    volumes:
+    - postgres_data:/var/lib/postgresql/data
+    - ./configs/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    - ./configs/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    - ./configs/infra/chrony-client.conf:/etc/chrony/chrony.conf:ro
+    - ./secrets/pki/db:/run/lab-pki:ro
+    - ./db/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      db_net:
+        ipv4_address: 10.100.30.10
+    depends_on:
+      log-server:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U cde_admin -d cde_db && psql -U cde_admin -d cde_db -tAc "SELECT
+        to_regclass('public.transactions') IS NOT NULL" | grep -q t
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+    restart: unless-stopped
+    labels:
+      lab.pci.zone: cde-database
+      lab.pci.implementation: implemented
+      lab.pci.scope.category: cde
+      lab.pci.scope.reason: stores-encrypted-chd-and-account-data
+      lab.pci.antimalware.coverage: repository-files-scanned
+      lab.pci.antimalware.runtime: not-demonstrated
+  jumpbox:
+    image: alpine:3.22.5
+    container_name: jumpbox-zone
+    command:
+    - tail
+    - -f
+    - /dev/null
+    networks:
+      vlan99_net:
+        ipv4_address: 10.50.99.10
+    profiles:
+    - topology
+    restart: unless-stopped
+    labels:
+      lab.pci.zone: administrative
+      lab.pci.implementation: placeholder
+      lab.pci.scope.category: candidate-out-of-scope
+      lab.pci.scope.reason: no-cde-connectivity-placeholder-only
+      lab.pci.antimalware.coverage: not-applicable-placeholder
+  branch-manager:
+    image: alpine:3.22.5
+    container_name: branch-manager-zone
+    command:
+    - tail
+    - -f
+    - /dev/null
+    networks:
+      vlan51_net:
+        ipv4_address: 10.50.51.10
+    profiles:
+    - topology
+    restart: unless-stopped
+    labels:
+      lab.pci.zone: out-of-scope
+      lab.pci.implementation: placeholder
+      lab.pci.scope.category: candidate-out-of-scope
+      lab.pci.scope.reason: isolated-departmental-placeholder
+      lab.pci.antimalware.coverage: not-applicable-placeholder
+  operation-manager:
+    image: alpine:3.22.5
+    container_name: operation-manager-zone
+    command:
+    - tail
+    - -f
+    - /dev/null
+    networks:
+      vlan52_net:
+        ipv4_address: 10.50.52.10
+    profiles:
+    - topology
+    restart: unless-stopped
+    labels:
+      lab.pci.zone: out-of-scope
+      lab.pci.implementation: placeholder
+      lab.pci.scope.category: candidate-out-of-scope
+      lab.pci.scope.reason: isolated-departmental-placeholder
+      lab.pci.antimalware.coverage: not-applicable-placeholder
+  compliance-officer:
+    image: alpine:3.22.5
+    container_name: compliance-officer-zone
+    command:
+    - tail
+    - -f
+    - /dev/null
+    networks:
+      vlan53_net:
+        ipv4_address: 10.50.53.10
+    profiles:
+    - topology
+    restart: unless-stopped
+    labels:
+      lab.pci.zone: out-of-scope
+      lab.pci.implementation: placeholder
+      lab.pci.scope.category: candidate-out-of-scope
+      lab.pci.scope.reason: isolated-departmental-placeholder
+      lab.pci.antimalware.coverage: not-applicable-placeholder
+  finance-manager:
+    image: alpine:3.22.5
+    container_name: finance-manager-zone
+    command:
+    - tail
+    - -f
+    - /dev/null
+    networks:
+      vlan54_net:
+        ipv4_address: 10.50.54.10
+    profiles:
+    - topology
+    restart: unless-stopped
+    labels:
+      lab.pci.zone: out-of-scope
+      lab.pci.implementation: placeholder
+      lab.pci.scope.category: candidate-out-of-scope
+      lab.pci.scope.reason: isolated-departmental-placeholder
+      lab.pci.antimalware.coverage: not-applicable-placeholder
+  it-department:
+    image: alpine:3.22.5
+    container_name: it-department-zone
+    command:
+    - tail
+    - -f
+    - /dev/null
+    networks:
+      vlan55_net:
+        ipv4_address: 10.50.55.10
+    profiles:
+    - topology
+    restart: unless-stopped
+    labels:
+      lab.pci.zone: out-of-scope
+      lab.pci.implementation: placeholder
+      lab.pci.scope.category: candidate-out-of-scope
+      lab.pci.scope.reason: isolated-departmental-placeholder
+      lab.pci.antimalware.coverage: not-applicable-placeholder
+  it-security:
+    image: alpine:3.22.5
+    container_name: it-security-zone
+    command:
+    - tail
+    - -f
+    - /dev/null
+    networks:
+      vlan56_net:
+        ipv4_address: 10.50.56.10
+    profiles:
+    - topology
+    restart: unless-stopped
+    labels:
+      lab.pci.zone: out-of-scope
+      lab.pci.implementation: placeholder
+      lab.pci.scope.category: candidate-out-of-scope
+      lab.pci.scope.reason: isolated-departmental-placeholder
+      lab.pci.antimalware.coverage: not-applicable-placeholder
+  pos-agent:
+    build:
+      context: .
+      dockerfile: docker/pos-agent.Dockerfile
+    container_name: pos-agent
+    network_mode: service:pos
+    security_opt:
+    - no-new-privileges:true
+    environment:
+      PAYMENT_HOST: payment.gateway
+      PAYMENT_URL: https://payment.gateway
+      PAYMENT_CA: /etc/lab/pki/ca.crt
+      TLS_CERT: /etc/lab/pki/server.crt
+      TLS_KEY: /etc/lab/pki/server.key
+      TLS_CA: /etc/lab/pki/ca.crt
+    volumes:
+    - ./secrets/pki/pos-agent:/etc/lab/pki:ro
+    - pos_status:/run/pos-status:ro
+    depends_on:
+      pos:
+        condition: service_started
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - python -c "import urllib.request,sys; r=urllib.request.urlopen('http://127.0.0.1:9001/health',timeout=2);
+        sys.exit(0 if r.status == 200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 10s
+    restart: unless-stopped
+    labels:
+      lab.pci.zone: retail-demo-control
+      lab.pci.implementation: implemented-demo-workflow
+      lab.pci.scope.category: cde
+      lab.pci.scope.reason: processes-and-transmits-chd
+      lab.pci.antimalware.coverage: repository-files-scanned
+      lab.pci.antimalware.runtime: not-demonstrated
+  demo-api:
+    build:
+      context: .
+      dockerfile: docker/demo-api.Dockerfile
+    container_name: demo-api
+    command:
+    - /usr/local/lib/lab/start-demo-api.sh
+    cap_add:
+    - NET_ADMIN
+    security_opt:
+    - no-new-privileges:true
+    environment:
+      POS_AGENT_URL: https://192.168.10.20:9444
+      POS_AGENT_CA: /etc/lab/pki/ca.crt
+      POS_AGENT_CLIENT_CERT: /etc/lab/pki/client.crt
+      POS_AGENT_CLIENT_KEY: /etc/lab/pki/client.key
+      TLS_CERT: /etc/lab/pki/server.crt
+      TLS_KEY: /etc/lab/pki/server.key
+      TLS_CA: /etc/lab/pki/ca.crt
+    volumes:
+    - ./secrets/pki/demo-api:/etc/lab/pki:ro
+    networks:
+      ui_net:
+        ipv4_address: 172.30.10.20
+      store_net:
+        ipv4_address: 192.168.10.30
+    depends_on:
+      pos-agent:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - 'python -c "import socket,ssl,sys; c=ssl.create_default_context(cafile=''/etc/lab/pki/ca.crt'');
+        c.load_cert_chain(''/etc/lab/pki/client.crt'',''/etc/lab/pki/client.key'');
+        s=c.wrap_socket(socket.create_connection((''127.0.0.1'',9443),2),server_hostname=''demo-api.internal'');
+        s.sendall(b''GET /health HTTP/1.1\\r\\nHost: demo-api.internal\\r\\nConnection:
+        close\\r\\n\\r\\n''); r=s.recv(256); s.close(); sys.exit(0 if b'' 200 '' in
+        r else 1)"'
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 10s
+    restart: unless-stopped
+    labels:
+      lab.pci.zone: demo-control
+      lab.pci.implementation: implemented-demo-workflow
+      lab.pci.scope.category: cde
+      lab.pci.scope.reason: processes-and-transmits-chd
+      lab.pci.antimalware.coverage: repository-files-scanned
+      lab.pci.antimalware.runtime: not-demonstrated
+  demo-ui:
+    build:
+      context: .
+      dockerfile: docker/demo-ui.Dockerfile
+    container_name: demo-ui
+    ports:
+    - name: demo-dashboard
+      target: 8443
+      published: "${DEMO_UI_PORT:-8443}"
+      host_ip: "127.0.0.1"
+      protocol: tcp
+    security_opt:
+    - no-new-privileges:true
+    volumes:
+    - ./secrets/pki/demo-ui:/etc/lab/pki:ro
+    networks:
+      ui_net:
+        ipv4_address: 172.30.10.10
+    depends_on:
+      demo-api:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - curl --fail --silent --show-error --tlsv1.2 --tls-max 1.2 --cacert /etc/lab/pki/ca.crt
+        https://localhost:8443/health >/dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 10s
+    restart: unless-stopped
+    labels:
+      lab.pci.zone: demo-ui
+      lab.pci.implementation: implemented-demo-workflow
+      lab.pci.scope.category: cde
+      lab.pci.scope.reason: terminates-browser-tls-and-transmits-chd
+      lab.pci.antimalware.coverage: repository-files-scanned
+      lab.pci.antimalware.runtime: not-demonstrated
+networks:
+  store_net:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+      - subnet: 192.168.10.0/24
+        gateway: 192.168.10.1
+  dmz_net:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+      - subnet: 10.0.10.0/24
+        gateway: 10.0.10.253
+  app_net:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+      - subnet: 10.100.10.0/24
+        gateway: 10.100.10.254
+  kms_net:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+      - subnet: 10.100.20.0/24
+        gateway: 10.100.20.254
+  db_net:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+      - subnet: 10.100.30.0/24
+        gateway: 10.100.30.254
+  vlan99_net:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+      - subnet: 10.50.99.0/24
+  vlan51_net:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+      - subnet: 10.50.51.0/24
+  vlan52_net:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+      - subnet: 10.50.52.0/24
+  vlan53_net:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+      - subnet: 10.50.53.0/24
+  vlan54_net:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+      - subnet: 10.50.54.0/24
+  vlan55_net:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+      - subnet: 10.50.55.0/24
+  vlan56_net:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+      - subnet: 10.50.56.0/24
+  ui_net:
+    driver: bridge
+    ipam:
+      config:
+      - subnet: 172.30.10.0/24
+        gateway: 172.30.10.1
+  security_tools_net:
+    driver: bridge
+    ipam:
+      config:
+      - subnet: 172.31.10.0/24
+        gateway: 172.31.10.1
+volumes:
+  postgres_data: null
+  vault_data: null
+  vault_bootstrap: null
+  app_vault_credentials: null
+  log_data: null
+  clamav_database: null
+  antimalware_logs: null
+  antimalware_test: null
+  pos_status: null

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Secure POS Payment Form</title>
+  <link rel="stylesheet" href="/checkout.css">
+</head>
+<body>
+  <main class="checkout-content">
+    <form id="purchase-form" novalidate>
+      <fieldset>
+        <legend>Customer</legend>
+        <div class="form-grid two-columns">
+          <label class="field">
+            <span>Full name</span>
+            <input name="full_name" autocomplete="name" value="POS Lab Customer" maxlength="255" required>
+          </label>
+          <label class="field">
+            <span>Email address</span>
+            <input name="email" type="email" autocomplete="email" value="pos-lab@example.com" required>
+          </label>
+        </div>
+        <label class="field">
+          <span>Phone number</span>
+          <input name="phone_number" autocomplete="tel" value="+85510000000" pattern="[0-9+() .-]{7,20}" required>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Card</legend>
+        <label class="field card-number-field">
+          <span>Test card number</span>
+          <input id="pan-input" name="pan" inputmode="numeric" autocomplete="off" value="4111 1111 1111 1111" minlength="15" maxlength="23" required>
+          <span class="field-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M3 5h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 4h18V7H3v2Zm0 3v5h18v-5H3Zm2 2h5v1.5H5V14Z"/></svg>
+          </span>
+        </label>
+        <div class="form-grid card-columns">
+          <label class="field">
+            <span>Exp. month</span>
+            <input name="exp_month" type="number" inputmode="numeric" value="12" min="1" max="12" required>
+          </label>
+          <label class="field">
+            <span>Exp. year</span>
+            <input name="exp_year" type="number" inputmode="numeric" value="2030" min="2026" max="2099" required>
+          </label>
+          <label class="field">
+            <span>CVV</span>
+            <input name="cvv" inputmode="numeric" autocomplete="off" value="123" pattern="[0-9]{3,4}" maxlength="4" required>
+          </label>
+          <label class="field amount-field">
+            <span>Amount (USD)</span>
+            <input id="amount-input" name="amount" type="number" inputmode="decimal" value="25.50" min="0.01" max="999999.99" step="0.01" required>
+          </label>
+        </div>
+      </fieldset>
+
+      <div class="transaction-feedback" id="transaction-feedback" aria-live="polite">
+        <span class="feedback-icon" aria-hidden="true"></span>
+        <div><strong id="feedback-title">Ready for payment</strong><p id="feedback-message">Confirm the values, then submit.</p></div>
+      </div>
+
+      <button class="primary-button" id="purchase-button" type="submit">
+        <span id="purchase-button-label">Pay $25.50</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13.2 5.2 5.8 5.8H4v2h15l-5.8 5.8 1.4 1.4L22.8 12l-8.2-8.2-1.4 1.4Z"/></svg>
+      </button>
+    </form>
+  </main>
+  <script src="/checkout.js" defer></script>
+</body>
+</html>

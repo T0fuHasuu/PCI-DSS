@@ -1,7 +1,0 @@
-.git
-.gitignore
-.env
-secrets
-**/__pycache__
-*.zip
-*.log

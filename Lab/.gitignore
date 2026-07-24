@@ -1,0 +1,9 @@
+.env
+secrets/*
+!secrets/README.md
+evidence/
+*.log
+*.zip
+__pycache__/
+*.py[cod]
+.pytest_cache/

@@ -1,6 +1,0 @@
-.env
-secrets/*
-!secrets/.gitkeep
-*.zip
-__pycache__/
-*.pyc
